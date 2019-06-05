@@ -12,6 +12,7 @@
   "dependencies": {
     "ccxt": "^1.18.584",
     "express": "^4.17.1",
+    "requirejs": "^2.3.6",
     "ws": "^7.0.0"
   }
 }

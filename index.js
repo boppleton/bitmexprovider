@@ -8,6 +8,12 @@ const WebSocket = require('ws')
 const ccxt = require('ccxt')
 const bitmex = new ccxt.bitmex()
 
+const binance = new ccxt.binance()
+
+
+// (async ()=>{
+//     console.log(await bitmex.loadMarkets())
+// })();
 
 
 /////////// start data ///////////////////////////////////////
@@ -17,7 +23,21 @@ const bitmex = new ccxt.bitmex()
 let symbols = [
     'XBTUSD',
     'ETHUSD',
+    //
+    // 'XBTM19', 'XBTU19',
+    // 'ETHM19',
+    // 'ADAM19',
+    // 'BCHM19',
+    // 'EOSM19',
+    // 'LTCM19',
+    // 'TRXM19',
+    'EOSM19',
+
+
+    'NEOBTC',
+    // 'XRPBTC'
 ]
+
 
 let bars = {}
 symbols.forEach((s) => {
@@ -57,47 +77,88 @@ app.listen(port, () => console.log(`server started on port ${port}!`));
     async function getBars(symbol, bin) {
         await sleep(1000)
         console.log("getting " + symbol + bin)
-        let bars1 = await bitmex.fetchOHLCV(getCCXTsymbol(symbol), bin[1] + bin[0], null, 750, {reverse: true})
 
-        for (let i = 0; i < 1; i++) {
-            let bars2 = await bitmex.fetchOHLCV(getCCXTsymbol(symbol), bin[1] + bin[0], null, 750, {
-                reverse: true,
-                endTime: new Date(bars1[0][0]).toISOString().split('.')[0] + "Z"
-            })
-            bars1 = bars2.concat(bars1)
+        let bars1
+
+        if (symbol === 'XBTUSD' || symbol === "ETHUSD" || symbol.includes('M19') || symbol.includes('U19')) {
+            bars1 = await bitmex.fetchOHLCV(getCCXTsymbol(symbol), bin[1] + bin[0], null, 750, {reverse: true})
+            for (let i = 0; i < 2; i++) {
+                let bars2 = await bitmex.fetchOHLCV(getCCXTsymbol(symbol), bin[1] + bin[0], null, 750, {
+                    reverse: true,
+                    partial: true,
+                    endTime: new Date(bars1[0][0]).toISOString().split('.')[0] + "Z"
+                })
+                bars1 = bars2.concat(bars1)
+            }
+
+            // bars1.forEach((bar) => {
+            //     bar[0] -= 60000 * (bin==='m1'?1:bin==='m5'?5:bin==='h1'?60:1440)
+            // })
+
+        } else {
+            bars1 = await binance.fetchOHLCV(getCCXTsymbol(symbol), bin[1] + bin[0], undefined, 1000)
+            // bars1.reverse()
+            for (let i = 0; i < 1; i++) {
+                let bars2 = await binance.fetchOHLCV(getCCXTsymbol(symbol), bin[1] + bin[0], undefined, 1000, {
+                    endTime: bars1[0][0]
+                })
+                bars2.pop()
+                bars1 = bars2.concat(bars1)
+            }
         }
 
-        let open = []
-        let high = []
-        let low = []
-        let close = []
-        bars1.forEach((bar, i) => {
-            open.push(bar[1])
-            high.push(bar[2])
-            low.push(bar[3])
-            close.push(bar[4])
-        })
+
+        // let open = []
+        // let high = []
+        // let low = []
+        // let close = []
+        // bars1.forEach((bar, i) => {
+        //     open.push(bar[1])
+        //     high.push(bar[2])
+        //     low.push(bar[3])
+        //     close.push(bar[4])
+        // })
+
         bars[symbol][bin] = bars1
     }
 
     await symbols.forEach(async (s) => {
+
+
         await getBars(s, 'm1')
-        await sleep(symbols.length*1000)
+        await sleep(symbols.length * 1000)
         await getBars(s, 'm5')
-        await sleep(symbols.length*1000)
+        await sleep(symbols.length * 1000)
         await getBars(s, 'h1')
-        await sleep(symbols.length*1000)
+        await sleep(symbols.length * 1000)
         await getBars(s, 'd1')
-        await sleep(symbols.length*1000)
+        await sleep(symbols.length * 1000)
     })
 })()
 
 function getCCXTsymbol(symbol) {
+
+    //mex pairs
     if (symbol === 'XBTUSD') {
         return 'BTC/USD'
     } else if (symbol === 'ETHUSD') {
         return 'ETH/USD'
+    } else if (symbol.includes('M19')) {
+        return symbol.replace('M19', 'M19')
+    } else if (symbol.includes('U19')) {
+        return symbol.replace('U19', 'U19')
     }
+
+    //bitmex pairs
+
+    if (symbol.includes('BTC')) {
+        return symbol.replace('BTC', '/BTC')
+    } else if (symbol.includes('USDT')) {
+        return symbol.replace('USDT', '/USDT')
+    }
+
+    return symbol
+
 }
 
 function sleep(ms) {
@@ -173,6 +234,8 @@ const tradeMsg = (action, data) => {
             let barz = bars[symbol][bin]
             let close = barz[barz.length - 1][4]
             barz.push([lastbarTime + (bin === 'm1' ? 60000 : bin === 'm5' ? 300000 : bin === 'h1' ? 3600000 : 86400000), close, close, close, close, 0])
+            barz.shift()
+            // console.log("new barz len " + barz.length)
         }
     }
 }
